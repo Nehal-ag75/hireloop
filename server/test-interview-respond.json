@@ -1,0 +1,3 @@
+{
+     "message": "I'll use a brute force approach first, checking every pair of numbers with two nested loops to see if they sum to the target."
+   }

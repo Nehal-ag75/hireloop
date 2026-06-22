@@ -1,0 +1,8 @@
+{
+  "name": "Nehal Test",
+  "email": "nehal@test.com",
+  "password": "test1234",
+  "target_role": "SDE Intern",
+  "target_company": "Google",
+  "days_left": 60
+}

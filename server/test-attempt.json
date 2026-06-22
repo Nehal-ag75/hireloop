@@ -1,0 +1,6 @@
+{
+  "problem_id": 1,
+  "verdict": "Solved",
+  "time_taken_minutes": 12,
+  "code_submitted": "function twoSum(nums, target) { }"
+}
