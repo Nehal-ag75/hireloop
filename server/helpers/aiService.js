@@ -1,13 +1,39 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const Groq = require('groq-sdk');
 require('dotenv').config();
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-/**
- * DIRECT REVIEW MODE
- * Analyzes code and gives complexity, edge cases, and a verdict.
- */
+async function callGroq(prompt, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const completion = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: 1024,
+      });
+      return completion.choices[0].message.content;
+    } catch (err) {
+      if (i < retries - 1) {
+        await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+function parseAIJson(text) {
+  let cleaned = text.trim();
+  cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '');
+  try {
+    return JSON.parse(cleaned);
+  } catch (err) {
+    console.error('Failed to parse AI response as JSON:', cleaned);
+    throw new Error('AI returned invalid JSON format');
+  }
+}
+
 async function getDirectReview(code, problemTitle) {
   const prompt = `You are an expert coding interviewer reviewing a candidate's solution.
 
@@ -28,23 +54,18 @@ Analyze this code and respond ONLY with valid JSON (no markdown, no backticks, n
   "explanation": "2-3 sentences explaining the verdict in plain English"
 }`;
 
-  const result = await model.generateContent(prompt);
-  const text = result.response.text();
+  const text = await callGroq(prompt);
   return parseAIJson(text);
 }
 
-/**
- * SOCRATIC MODE
- * Never reveals the answer — only asks guiding questions.
- */
 async function getSocraticHint(code, problemTitle, hintLevel = 1) {
   const intensity = {
     1: 'Give a very gentle, high-level nudge. Do not mention any specific data structure or algorithm.',
-    2: 'Give a moderate hint pointing toward the right approach category (e.g. "think about a data structure that allows fast lookups") without naming the exact technique.',
-    3: 'Give a strong hint that is close to revealing the approach, but still phrase it as a question, not a direct answer.',
+    2: 'Give a moderate hint pointing toward the right approach category without naming the exact technique.',
+    3: 'Give a strong hint that is close to revealing the approach, but still phrase it as a question.',
   };
 
-  const prompt = `You are a Socratic coding mentor. You NEVER give direct answers or write correct code for the user. You only ask guiding questions that help them discover the solution themselves.
+  const prompt = `You are a Socratic coding mentor. You NEVER give direct answers or write correct code for the user.
 
 Problem: "${problemTitle}"
 
@@ -61,29 +82,10 @@ Respond ONLY with valid JSON (no markdown, no backticks) in exactly this format:
   "encouragement": "one short encouraging sentence"
 }`;
 
-  const result = await model.generateContent(prompt);
-  const text = result.response.text();
+  const text = await callGroq(prompt);
   return parseAIJson(text);
 }
 
-/**
- * Safely parses AI response text into JSON, handling cases where
- * the model wraps output in markdown code fences despite instructions.
- */
-function parseAIJson(text) {
-  let cleaned = text.trim();
-  cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '');
-  try {
-    return JSON.parse(cleaned);
-  } catch (err) {
-    console.error('Failed to parse AI response as JSON:', cleaned);
-    throw new Error('AI returned invalid JSON format');
-  }
-}
-/**
- * MOCK INTERVIEW - Start or continue a conversation
- * Maintains context by passing the full conversation history each time.
- */
 async function getInterviewerResponse(problemTitle, conversationHistory) {
   const systemContext = `You are a strict but fair technical interviewer at a top tech company conducting a coding interview.
 
@@ -104,14 +106,10 @@ Respond ONLY with valid JSON (no markdown, no backticks) in exactly this format:
   "interviewerMessage": "your next message as the interviewer"
 }`;
 
-  const result = await model.generateContent(systemContext);
-  const text = result.response.text();
+  const text = await callGroq(systemContext);
   return parseAIJson(text);
 }
 
-/**
- * MOCK INTERVIEW - Generate final scorecard after interview ends
- */
 async function generateScorecard(problemTitle, conversationHistory) {
   const prompt = `You are evaluating a completed technical interview.
 
@@ -130,14 +128,10 @@ Based on this conversation, evaluate the candidate. Respond ONLY with valid JSON
   "summary": "2-3 sentence summary of performance"
 }`;
 
-  const result = await model.generateContent(prompt);
-  const text = result.response.text();
+  const text = await callGroq(prompt);
   return parseAIJson(text);
 }
-/**
- * RESUME ANALYZER
- * Compares resume text against a target job description, gives gap analysis
- */
+
 async function analyzeResume(resumeText, jobDescription, targetRole) {
   const prompt = `You are an expert technical recruiter and resume coach.
 
@@ -153,9 +147,9 @@ Analyze this resume and respond ONLY with valid JSON (no markdown, no backticks)
   "missingKeywords": ["list of important keywords/skills missing for this role"],
   "weakBullets": [
     {
-      "original": "a weak bullet point quoted or closely paraphrased from the resume",
-      "improved": "a rewritten, stronger, impact-focused version of that bullet",
-      "reason": "why the original was weak (e.g. task-focused not impact-focused)"
+      "original": "a weak bullet point from the resume",
+      "improved": "a rewritten, stronger, impact-focused version",
+      "reason": "why the original was weak"
     }
   ],
   "overallFeedback": "2-3 sentence summary of how to improve this resume for the target role"
@@ -163,8 +157,7 @@ Analyze this resume and respond ONLY with valid JSON (no markdown, no backticks)
 
 Limit weakBullets to the 2-3 weakest points in the resume.`;
 
-  const result = await model.generateContent(prompt);
-  const text = result.response.text();
+  const text = await callGroq(prompt);
   return parseAIJson(text);
 }
 

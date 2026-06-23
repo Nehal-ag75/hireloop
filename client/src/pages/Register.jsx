@@ -28,12 +28,7 @@ export default function Register() {
   return (
     <div className="min-h-screen bg-paper flex items-center justify-center px-4">
       <div className="w-full max-w-[380px]">
-        <div className="flex items-center gap-2.5 mb-8 justify-center">
-          <div className="w-8 h-8 rounded-md bg-accent flex items-center justify-center text-white text-base font-semibold">
-            P
-          </div>
-          <span className="text-lg font-semibold text-ink">PrepPath</span>
-        </div>
+        
 
         <div className="bg-paper-card border border-line rounded-xl shadow-card p-7">
           <h2 className="text-[19px] font-semibold text-ink mb-1">Create account</h2>

@@ -29,7 +29,7 @@ const SUB_TOPIC_ORDER = [
 // GET all problems
 router.get('/problems', async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM problems WHERE topic = 'Data Structures & Algorithms'");
+    const result = await pool.query("SELECT * FROM problems WHERE 1=1");
     const remappedRows = result.rows.map(row => ({
       ...row,
       topic: getSubTopic(row.title)
@@ -49,7 +49,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
     const userId = req.userId;
     const { targetCompany = null, days = 30 } = req.body;
 
-    const problemsResult = await pool.query("SELECT * FROM problems WHERE topic = 'Data Structures & Algorithms'");
+    const problemsResult = await pool.query("SELECT * FROM problems WHERE 1=1");
     const allProblems = problemsResult.rows.map(p => ({
       ...p,
       subTopic: getSubTopic(p.title)

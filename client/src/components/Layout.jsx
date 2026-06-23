@@ -28,10 +28,8 @@ export default function Layout() {
       <aside className="w-60 bg-paper border-r border-line flex flex-col shrink-0">
         <div className="px-5 py-5">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-md bg-accent flex items-center justify-center text-white text-sm font-semibold">
-              P
-            </div>
-            <h1 className="text-[15px] font-semibold text-ink tracking-tight">PrepPath</h1>
+           
+            <h1 className="text-[15px] font-semibold text-ink tracking-tight">Hireloop</h1>
           </div>
         </div>
 
