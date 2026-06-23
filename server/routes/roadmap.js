@@ -26,6 +26,23 @@ const SUB_TOPIC_ORDER = [
   'Core DSA Principles'
 ];
 
+const WEAK_TOPIC_MAP = {
+  'Arrays': 'Arrays & Strings',
+  'Strings': 'Arrays & Strings',
+  'Two Pointers': 'Arrays & Strings',
+  'Sliding Window': 'Arrays & Strings',
+  'Linked List': 'Linked Lists',
+  'Stacks': 'Stacks & Queues',
+  'Trees': 'Trees & Heaps',
+  'Heap': 'Trees & Heaps',
+  'Graphs': 'Graphs',
+  'Dynamic Programming': 'Dynamic Programming & Backtracking',
+  'Backtracking': 'Dynamic Programming & Backtracking',
+  'Recursion': 'Dynamic Programming & Backtracking',
+  'Binary Search': 'Core DSA Principles',
+  'Greedy': 'Core DSA Principles',
+};
+
 // GET all problems
 router.get('/problems', async (req, res) => {
   try {
@@ -47,40 +64,71 @@ router.get('/problems', async (req, res) => {
 router.post('/generate', authMiddleware, async (req, res) => {
   try {
     const userId = req.userId;
-    const { targetCompany = null, days = 30 } = req.body;
+    const { targetCompany = null, days = 30, weakTopics = [] } = req.body;
+    const totalDaysTarget = Number(days) || 30;
+    const diffLevels = ['Easy', 'Medium', 'Hard'];
 
-    const problemsResult = await pool.query("SELECT * FROM problems WHERE 1=1");
+    // Fetch company-specific problems first, fall back to all if too few
+    let problemsResult;
+    if (targetCompany) {
+      problemsResult = await pool.query(
+        "SELECT * FROM problems WHERE $1 = ANY(companies)",
+        [targetCompany]
+      );
+      if (problemsResult.rows.length < 20) {
+        problemsResult = await pool.query("SELECT * FROM problems");
+      }
+    } else {
+      problemsResult = await pool.query("SELECT * FROM problems");
+    }
+
     const allProblems = problemsResult.rows.map(p => ({
       ...p,
       subTopic: getSubTopic(p.title)
     }));
 
-    const PROBLEMS_PER_DAY = 6;
-    const totalDaysTarget = days ? Number(days) : 30;
-    const maxProblemsBudget = totalDaysTarget * PROBLEMS_PER_DAY;
+    // Map weak topics to internal subtopic names, deduplicate
+    const mappedWeakTopics = [...new Set(
+      weakTopics.map(t => WEAK_TOPIC_MAP[t]).filter(Boolean)
+    )];
 
-    // Build per-topic, per-difficulty queues for balanced selection
-    // Each day gets 2 Easy + 2 Medium + 2 Hard from rotating topics
-    const diffLevels = ['Easy', 'Medium', 'Hard'];
+    // Order: weak topics first, then remaining
+    const weakFirst = mappedWeakTopics.filter(t => SUB_TOPIC_ORDER.includes(t));
+    const remaining = SUB_TOPIC_ORDER.filter(t => !weakFirst.includes(t));
+    const orderedTopics = [...weakFirst, ...remaining];
+
+    // Build per-topic per-difficulty queues
     const topicDiffQueues = {};
-    for (const topic of SUB_TOPIC_ORDER) {
+    const topicIndices = {};
+    for (const topic of orderedTopics) {
       topicDiffQueues[topic] = {};
+      topicIndices[topic] = { Easy: 0, Medium: 0, Hard: 0 };
       for (const diff of diffLevels) {
         topicDiffQueues[topic][diff] = allProblems
           .filter(p => p.subTopic === topic && p.difficulty === diff);
       }
     }
 
-    // Flatten into a balanced pool: round-robin across topics, 
-    // within each topic pick Easy then Medium then Hard
     const easyPool = [], mediumPool = [], hardPool = [];
-    let hasMore = true;
-    const topicIndices = {};
-    SUB_TOPIC_ORDER.forEach(t => topicIndices[t] = { Easy: 0, Medium: 0, Hard: 0 });
 
+    // First pass: drain weak topics completely
+    for (const topic of weakFirst) {
+      for (const diff of diffLevels) {
+        const q = topicDiffQueues[topic][diff];
+        for (const p of q) {
+          if (diff === 'Easy') easyPool.push(p);
+          else if (diff === 'Medium') mediumPool.push(p);
+          else hardPool.push(p);
+        }
+        topicIndices[topic][diff] = q.length;
+      }
+    }
+
+    // Second pass: round-robin remaining topics
+    let hasMore = true;
     while (hasMore) {
       hasMore = false;
-      for (const topic of SUB_TOPIC_ORDER) {
+      for (const topic of remaining) {
         for (const diff of diffLevels) {
           const q = topicDiffQueues[topic][diff];
           const idx = topicIndices[topic][diff];
@@ -110,15 +158,12 @@ router.post('/generate', authMiddleware, async (req, res) => {
     await pool.query('DELETE FROM roadmap WHERE user_id = $1', [userId]);
 
     const insertedRoadmap = [];
-    for (let i = 0; i < roadmapProblems.length; i++) {
-      const problem = roadmapProblems[i];
-      const dayNumber = problem._day;
+    for (const problem of roadmapProblems) {
       const insertResult = await pool.query(
         `INSERT INTO roadmap (user_id, day_number, problem_id, status)
          VALUES ($1, $2, $3, 'pending') RETURNING *`,
-        [userId, dayNumber, problem.id]
+        [userId, problem._day, problem.id]
       );
-
       insertedRoadmap.push({
         ...insertResult.rows[0],
         title: problem.title,
