@@ -55,3 +55,14 @@ CREATE TABLE notes (
   ai_generated BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT NOW()
 );
+-- Interview sessions table
+CREATE TABLE IF NOT EXISTS interview_sessions (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  problem_title VARCHAR(255),
+  conversation TEXT,
+  scorecard TEXT,
+  status VARCHAR(50) DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
