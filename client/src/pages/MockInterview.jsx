@@ -32,7 +32,7 @@ export default function MockInterview() {
       const res = await api.post('/interview/start', { company, difficulty, topic });
       setSessionId(res.data.id);
       if (res.data.conversation && res.data.conversation.length > 0) {
-        setMessages(res.data.conversation);
+        setMessages(typeof res.data.conversation === "string" ? JSON.parse(res.data.conversation) : res.data.conversation);
       }
     } catch (err) {
       console.error(err);
@@ -54,7 +54,7 @@ export default function MockInterview() {
     try {
       const res = await api.post(`/interview/${sessionId}/respond`, { message: input });
       if (res.data.conversation) {
-        setMessages(res.data.conversation);
+        setMessages(typeof res.data.conversation === "string" ? JSON.parse(res.data.conversation) : res.data.conversation);
       }
     } catch (err) {
       console.error(err);
