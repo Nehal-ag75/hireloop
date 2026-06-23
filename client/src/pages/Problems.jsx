@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { CheckCircle2, XCircle, ExternalLink, CalendarClock, AlertCircle } from 'lucide-react';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API = import.meta.env.VITE_API_URL || 'https://hireloop-backend-ad4x.onrender.com';
 function getToken() { return localStorage.getItem('token'); }
 
 function ReviewBadge({ dateStr }) {
