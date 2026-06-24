@@ -25,7 +25,11 @@ async function callCF(prompt, retries = 3) {
       if (!response.ok) {
         throw new Error(JSON.stringify(data));
       }
-      return data.result.response;
+      const result = data.result;
+      if (typeof result === 'string') return result;
+      if (result?.response) return result.response;
+      if (result?.choices?.[0]?.message?.content) return result.choices[0].message.content;
+      throw new Error('Unexpected Cloudflare response: ' + JSON.stringify(result));
     } catch (err) {
       if (i < retries - 1) {
         await new Promise(r => setTimeout(r, 2000 * (i + 1)));
