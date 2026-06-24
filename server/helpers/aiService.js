@@ -1,12 +1,27 @@
 const Groq = require('groq-sdk');
 require('dotenv').config();
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const API_KEYS = [
+  process.env.GROQ_KEY_1,
+  process.env.GROQ_KEY_2,
+  process.env.GROQ_KEY_3,
+  process.env.GROQ_KEY_4,
+  process.env.GROQ_KEY_5,
+  process.env.GROQ_API_KEY,
+].filter(Boolean);
 
-async function callGroq(prompt, retries = 3) {
+let currentKeyIndex = 0;
+
+function getClient() {
+  const key = API_KEYS[currentKeyIndex % API_KEYS.length];
+  return new Groq({ apiKey: key });
+}
+
+async function callGroq(prompt, retries = API_KEYS.length * 3) {
   for (let i = 0; i < retries; i++) {
     try {
-      const completion = await groq.chat.completions.create({
+      const client = getClient();
+      const completion = await client.chat.completions.create({
         model: 'llama-3.3-70b-versatile',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
@@ -14,8 +29,11 @@ async function callGroq(prompt, retries = 3) {
       });
       return completion.choices[0].message.content;
     } catch (err) {
-      if (i < retries - 1) {
-        await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+      const status = err?.status || err?.statusCode || err?.error?.status;
+      if ((status === 429 || status === 503) && i < retries - 1) {
+        currentKeyIndex++;
+        console.log(`Key ${((currentKeyIndex - 1) % API_KEYS.length) + 1} exhausted, rotating to key ${(currentKeyIndex % API_KEYS.length) + 1} of ${API_KEYS.length}`);
+        await new Promise(r => setTimeout(r, 1500));
         continue;
       }
       throw err;
