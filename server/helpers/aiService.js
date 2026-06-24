@@ -1,39 +1,34 @@
-const Groq = require('groq-sdk');
 require('dotenv').config();
 
-const API_KEYS = [
-  process.env.GROQ_KEY_1,
-  process.env.GROQ_KEY_2,
-  process.env.GROQ_KEY_3,
-  process.env.GROQ_KEY_4,
-  process.env.GROQ_KEY_5,
-  process.env.GROQ_API_KEY,
-].filter(Boolean);
+const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID;
+const CF_API_TOKEN = process.env.CF_API_TOKEN;
+const MODEL = '@cf/meta/llama-3.1-8b-instruct';
 
-let currentKeyIndex = 0;
-
-function getClient() {
-  const key = API_KEYS[currentKeyIndex % API_KEYS.length];
-  return new Groq({ apiKey: key });
-}
-
-async function callGroq(prompt, retries = API_KEYS.length * 3) {
+async function callCF(prompt, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
-      const client = getClient();
-      const completion = await client.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-        max_tokens: 1024,
-      });
-      return completion.choices[0].message.content;
+      const response = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/run/${MODEL}`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${CF_API_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 1024,
+          }),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(JSON.stringify(data));
+      }
+      return data.result.response;
     } catch (err) {
-      const status = err?.status || err?.statusCode || err?.error?.status;
-      if ((status === 429 || status === 503) && i < retries - 1) {
-        currentKeyIndex++;
-        console.log(`Key ${((currentKeyIndex - 1) % API_KEYS.length) + 1} exhausted, rotating to key ${(currentKeyIndex % API_KEYS.length) + 1} of ${API_KEYS.length}`);
-        await new Promise(r => setTimeout(r, 1500));
+      if (i < retries - 1) {
+        await new Promise(r => setTimeout(r, 2000 * (i + 1)));
         continue;
       }
       throw err;
@@ -72,7 +67,7 @@ Analyze this code and respond ONLY with valid JSON (no markdown, no backticks, n
   "explanation": "2-3 sentences explaining the verdict in plain English"
 }`;
 
-  const text = await callGroq(prompt);
+  const text = await callCF(prompt);
   return parseAIJson(text);
 }
 
@@ -100,21 +95,21 @@ Respond ONLY with valid JSON (no markdown, no backticks) in exactly this format:
   "encouragement": "one short encouraging sentence"
 }`;
 
-  const text = await callGroq(prompt);
+  const text = await callCF(prompt);
   return parseAIJson(text);
 }
 
 async function getInterviewerResponse(problemTitle, conversationHistory) {
-  const systemContext = `You are a strict but fair technical interviewer at a top tech company conducting a coding interview.
+  const prompt = `You are a strict but fair technical interviewer at a top tech company conducting a coding interview.
 
 Problem to interview on: "${problemTitle}"
 
 Rules you MUST follow:
-- Never accept vague answers. Always probe deeper (ask about complexity, edge cases, alternative approaches).
+- Never accept vague answers. Always probe deeper.
 - Ask ONE question at a time.
-- If the candidate gives a good answer, acknowledge briefly then ask a natural follow-up.
-- If this is the start of the conversation (empty history), begin by presenting the problem clearly and asking them to explain their initial approach.
-- Keep your responses concise, like a real interviewer would speak (2-4 sentences max).
+- If the candidate gives a good answer, acknowledge briefly then ask a follow-up.
+- If conversation history is empty, begin by presenting the problem and asking for their initial approach.
+- Keep responses concise (2-4 sentences max).
 
 Conversation so far:
 ${conversationHistory.map(m => `${m.role === 'user' ? 'Candidate' : 'Interviewer'}: ${m.content}`).join('\n')}
@@ -124,7 +119,7 @@ Respond ONLY with valid JSON (no markdown, no backticks) in exactly this format:
   "interviewerMessage": "your next message as the interviewer"
 }`;
 
-  const text = await callGroq(systemContext);
+  const text = await callCF(prompt);
   return parseAIJson(text);
 }
 
@@ -136,7 +131,7 @@ Problem: "${problemTitle}"
 Full conversation:
 ${conversationHistory.map(m => `${m.role === 'user' ? 'Candidate' : 'Interviewer'}: ${m.content}`).join('\n')}
 
-Based on this conversation, evaluate the candidate. Respond ONLY with valid JSON (no markdown, no backticks) in exactly this format:
+Evaluate the candidate. Respond ONLY with valid JSON (no markdown, no backticks) in exactly this format:
 {
   "problemSolving": <score 0-10>,
   "communication": <score 0-10>,
@@ -146,7 +141,7 @@ Based on this conversation, evaluate the candidate. Respond ONLY with valid JSON
   "summary": "2-3 sentence summary of performance"
 }`;
 
-  const text = await callGroq(prompt);
+  const text = await callCF(prompt);
   return parseAIJson(text);
 }
 
@@ -175,7 +170,7 @@ Analyze this resume and respond ONLY with valid JSON (no markdown, no backticks)
 
 Limit weakBullets to the 2-3 weakest points in the resume.`;
 
-  const text = await callGroq(prompt);
+  const text = await callCF(prompt);
   return parseAIJson(text);
 }
 
