@@ -25,13 +25,11 @@ async function callCF(prompt, retries = 3) {
       if (!response.ok) {
         throw new Error(JSON.stringify(data));
       }
-      console.log('CF raw response:', JSON.stringify(data));
       const result = data.result;
-      if (typeof result === 'string') return result;
-      if (result?.response) return result.response;
+      if (result?.response && typeof result.response === 'object') return result.response;
+      if (result?.response && typeof result.response === 'string') return result.response;
       if (result?.choices?.[0]?.message?.content) return result.choices[0].message.content;
-      if (result?.choices?.[0]?.text) return result.choices[0].text;
-      return JSON.stringify(result);
+      throw new Error('Unexpected CF response: ' + JSON.stringify(result));
     } catch (err) {
       if (i < retries - 1) {
         await new Promise(r => setTimeout(r, 2000 * (i + 1)));
@@ -43,6 +41,7 @@ async function callCF(prompt, retries = 3) {
 }
 
 function parseAIJson(text) {
+  if (typeof text === 'object' && text !== null) return text;
   let cleaned = text.trim();
   cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '');
   try {
@@ -52,7 +51,6 @@ function parseAIJson(text) {
     throw new Error('AI returned invalid JSON format');
   }
 }
-
 async function getDirectReview(code, problemTitle) {
   const prompt = `You are an expert coding interviewer reviewing a candidate's solution.
 
