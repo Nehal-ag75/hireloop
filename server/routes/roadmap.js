@@ -15,6 +15,15 @@ function getSubTopic(title) {
   return 'Core DSA Principles';
 }
 
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 const SUB_TOPIC_ORDER = [
   'Arrays & Strings',
   'Linked Lists',
@@ -46,7 +55,7 @@ const WEAK_TOPIC_MAP = {
 // GET all problems
 router.get('/problems', async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM problems WHERE 1=1");
+    const result = await pool.query("SELECT * FROM problems");
     const remappedRows = result.rows.map(row => ({
       ...row,
       topic: getSubTopic(row.title)
@@ -68,7 +77,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
     const totalDaysTarget = Number(days) || 30;
     const diffLevels = ['Easy', 'Medium', 'Hard'];
 
-    // Fetch company-specific problems first, fall back to all if too few
+    // Fetch company-specific problems, fall back to all if too few
     let problemsResult;
     if (targetCompany) {
       problemsResult = await pool.query(
@@ -82,17 +91,18 @@ router.post('/generate', authMiddleware, async (req, res) => {
       problemsResult = await pool.query("SELECT * FROM problems");
     }
 
-    const allProblems = problemsResult.rows.map(p => ({
+    // Shuffle so company roadmaps are unique and different from each other
+    const allProblems = shuffle(problemsResult.rows).map(p => ({
       ...p,
       subTopic: getSubTopic(p.title)
     }));
 
-    // Map weak topics to internal subtopic names, deduplicate
+    // Map weak topics to internal subtopic names
     const mappedWeakTopics = [...new Set(
       weakTopics.map(t => WEAK_TOPIC_MAP[t]).filter(Boolean)
     )];
 
-    // Order: weak topics first, then remaining
+    // Weak topics first, then remaining
     const weakFirst = mappedWeakTopics.filter(t => SUB_TOPIC_ORDER.includes(t));
     const remaining = SUB_TOPIC_ORDER.filter(t => !weakFirst.includes(t));
     const orderedTopics = [...weakFirst, ...remaining];
