@@ -15,7 +15,7 @@ const COMPANY_LIST = [
   "PayPal", "Pinterest",
   "Reddit", "Snapchat", "Spotify", "Stripe", "ServiceNow", "Splunk", "Slack",
   "TCS", "TikTok / ByteDance", "Twilio", "Twitter / X",
-  "Uber", "Wipro", "Zoom"
+  "Uber", "Wipro", "Zoom", "Zomato"
 ];
 
 // 1. GET /api/companies/list
